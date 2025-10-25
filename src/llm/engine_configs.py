@@ -158,5 +158,15 @@ ENGINE_CONFIGS: Dict[str, Dict[str, Any]] = {
                 "stop": [""]
             }
         }
+    },
+    "qwen-local": {
+        "constructor": ChatOpenAI,
+        "params": {
+            "model": "qwen/qwen2.5-7b-instruct",
+            "openai_api_key": "EMPTY",
+            "openai_api_base": "http://127.0.0.1:39494/v1",
+            "max_tokens": 1000,
+            "temperature": 0,
+        }
     }
 }
