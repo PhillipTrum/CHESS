@@ -55,11 +55,11 @@ class ExecutionAccuracy(Tool):
             })
             self.evaluation_results[key] = evaluation_result
             
-        # Choosing the last SQL without syntax error as the final SQL
+        # Choosing the last SQL that executed correctly as the final SQL
         # TODO: Implement a better way to choose the final SQL    
         final_result = None
         for key, evaluation_result in self.evaluation_results.items():
-            if evaluation_result["exec_res"] not in ["incorrect answer", "--"]:
+            if evaluation_result["exec_res"] == 1:  # exec_res == 1 means correct answer
                 final_result = evaluation_result
         self.evaluation_results["final_SQL"] = final_result
     

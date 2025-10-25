@@ -12,31 +12,25 @@ This guide covers the complete setup for running CHESS with a locally deployed L
 
 ### Setup Steps
 
-1. **Verify Configuration**
-   ```bash
-   cd CHESS
-   ./verify_setup.sh
-   ```
-
-2. **Add API Key** (edit `.env`)
+1. **Add API Key** (edit `.env`)
    ```bash
    OPENAI_API_KEY=sk-your-key-here
    ```
    *Note: Only needed for preprocessing. For 100% local setup, see "Local Embeddings" section.*
 
-3. **Run Preprocessing** (one-time, ~$1 cost with OpenAI)
+2. **Run Preprocessing** (one-time, ~$1 cost with OpenAI)
    ```bash
-   sh run/run_preprocess.sh
+   bash run/run_preprocess.sh
    ```
 
-4. **Start Local LLM Server**
+3. **Start Local LLM Server**
    ```bash
    python3 ../launch_llmserver.py
    ```
 
-5. **Run CHESS**
+4. **Run CHESS**
    ```bash
-   sh run/run_main_local_llm.sh
+   bash run/run_main_local_llm.sh
    ```
 
 ---
@@ -123,19 +117,6 @@ information_retriever:
 candidate_generator:
   engine: 'gpt-4o-mini'     # Cloud for complex generation
 ```
-
-### Verification Script
-
-Run anytime to check setup status:
-```bash
-./verify_setup.sh
-```
-
-Shows:
-- ✓ Path correctness
-- ✓ Dataset statistics (500 questions, 11 databases)
-- ✓ API key status
-- ✓ Preprocessing completion for each database
 
 ---
 
@@ -244,14 +225,6 @@ echo $OPENAI_API_KEY
 # Or switch to local embeddings (see above)
 ```
 
-### Path Not Found Errors
-```bash
-# Verify paths are correct
-./verify_setup.sh
-
-# Should show MINIDEV paths, not dev paths
-```
-
 ### Import Errors
 ```bash
 # Install missing dependencies
@@ -324,30 +297,3 @@ CHESS/
 │           └── preprocess.py    # Uses OpenAI embeddings
 └── data/dev/MINIDEV/            # Your dataset (500 questions, 11 DBs)
 ```
-
----
-
-## Summary
-
-**What was done:**
-1. ✅ Fixed incorrect paths in `.env` to point to MINIDEV dataset
-2. ✅ Added `qwen-local` engine configuration for your local LLM
-3. ✅ Created YAML config using local LLM for all agents
-4. ✅ Created run script for easy execution
-5. ✅ Verified dataset exists (500 questions, 11 databases)
-6. ✅ Documented local embeddings option for 100% offline setup
-
-**Current status:**
-- Paths: ✅ Corrected
-- Local LLM: ✅ Configured
-- Dataset: ✅ Ready (500 questions)
-- Preprocessing: ⏳ Pending (add API key OR use local embeddings)
-
-**Next step:**
-Add OpenAI API key to `.env` and run `sh run/run_preprocess.sh`  
-OR  
-Configure local embeddings (see "100% Local Setup" section) for zero-cost setup.
-
----
-
-For questions or issues, check the troubleshooting section or run `./verify_setup.sh` to diagnose problems.

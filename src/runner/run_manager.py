@@ -209,8 +209,9 @@ class RunManager:
                             continue
                         self.statistics_manager.update_stats(db_id, question_id, validation_for, result)
             if "final_SQL" in step:
-                self.statistics_manager.update_stats(db_id, question_id, "final_SQL", step["final_SQL"])
-                self.update_final_predictions(question_id, step["final_SQL"]["PREDICTED_SQL"], db_id)
+                if step["final_SQL"] is not None:
+                    self.statistics_manager.update_stats(db_id, question_id, "final_SQL", step["final_SQL"])
+                    self.update_final_predictions(question_id, step["final_SQL"]["PREDICTED_SQL"], db_id)
         self.statistics_manager.dump_statistics_to_file()
         self.processed_tasks += 1
         self.plot_progress()
