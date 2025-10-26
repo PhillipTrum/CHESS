@@ -285,14 +285,24 @@ def plot_category_breakdown(metrics: Dict[str, Any], output_dir: str):
     counts = [data['count'] for data in active_categories.values()]
     colors = [CATEGORY_COLORS.get(cat, '#95a5a6') for cat in active_categories.keys()]
     
+    # Use timeline_percentage if available, otherwise fall back to percentage
+    percentages = [
+        data.get('timeline_percentage', data.get('percentage', 0)) 
+        for data in active_categories.values()
+    ]
+    
     # Create figure with two subplots
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
     
-    # Pie chart - Time distribution
-    wedges, texts, autotexts = ax1.pie(times, labels=labels, colors=colors,
+    # Pie chart - Timeline coverage (wall-clock percentage)
+    # Use percentages for the pie chart to ensure it adds up to 100%
+    wedges, texts, autotexts = ax1.pie(percentages, labels=labels, colors=colors,
                                         autopct='%1.1f%%', startangle=90,
                                         textprops={'fontsize': 10})
-    ax1.set_title('Time Distribution by Category', fontsize=14, fontweight='bold')
+    
+    # Check if we're using timeline or cumulative percentage
+    percentage_type = 'Timeline Coverage' if 'timeline_percentage' in next(iter(active_categories.values())) else 'Time Distribution'
+    ax1.set_title(f'{percentage_type} by Category', fontsize=14, fontweight='bold')
     
     # Make percentage text bold
     for autotext in autotexts:
@@ -387,37 +397,63 @@ def plot_detailed_statistics(metrics: Dict[str, Any], output_dir: str):
     ax4.axis('off')
     
     table_data = []
-    for cat, data in active_categories.items():
-        table_data.append([
-            cat.replace('_', ' ').title(),
-            f"{data['total_time']:.2f}s",
-            data['count'],
-            f"{data['average_time']:.3f}s",
-            f"{data['percentage']:.1f}%"
-        ])
+    
+    # Check if we have new format with timeline_percentage
+    has_timeline_metric = 'timeline_percentage' in next(iter(active_categories.values()))
+    
+    if has_timeline_metric:
+        # New format with both metrics
+        for cat, data in active_categories.items():
+            table_data.append([
+                cat.replace('_', ' ').title(),
+                f"{data['total_time']:.2f}s",
+                data['count'],
+                f"{data['average_time']:.3f}s",
+                f"{data['timeline_percentage']:.1f}%",
+                f"{data['cumulative_percentage']:.1f}%"
+            ])
+        
+        col_labels = ['Category', 'Total Time', 'Count', 'Avg Time', 'Timeline %', 'Cumul. %']
+        col_widths = [0.25, 0.13, 0.09, 0.13, 0.13, 0.13]
+    else:
+        # Old format with single percentage
+        for cat, data in active_categories.items():
+            table_data.append([
+                cat.replace('_', ' ').title(),
+                f"{data['total_time']:.2f}s",
+                data['count'],
+                f"{data['average_time']:.3f}s",
+                f"{data.get('percentage', 0):.1f}%"
+            ])
+        
+        col_labels = ['Category', 'Total Time', 'Count', 'Avg Time', '%']
+        col_widths = [0.3, 0.15, 0.1, 0.15, 0.1]
     
     table = ax4.table(cellText=table_data,
-                     colLabels=['Category', 'Total Time', 'Count', 'Avg Time', '%'],
+                     colLabels=col_labels,
                      cellLoc='left',
                      loc='center',
-                     colWidths=[0.3, 0.15, 0.1, 0.15, 0.1])
+                     colWidths=col_widths)
     table.auto_set_font_size(False)
-    table.set_fontsize(10)
+    table.set_fontsize(9)
     table.scale(1, 2)
     
     # Style header
-    for i in range(5):
+    for i in range(len(col_labels)):
         table[(0, i)].set_facecolor('#34495e')
         table[(0, i)].set_text_props(weight='bold', color='white')
     
     # Color rows by category
     for i, cat in enumerate(active_categories.keys()):
         color = CATEGORY_COLORS.get(cat, '#95a5a6')
-        for j in range(5):
+        for j in range(len(col_labels)):
             table[(i+1, j)].set_facecolor(color)
             table[(i+1, j)].set_alpha(0.3)
     
-    ax4.set_title('Detailed Statistics', fontsize=14, fontweight='bold', pad=20)
+    title_text = 'Detailed Statistics'
+    if has_timeline_metric:
+        title_text += '\n(Timeline % = wall-clock, Cumul. % = sum of durations)'
+    ax4.set_title(title_text, fontsize=14, fontweight='bold', pad=20)
     
     plt.tight_layout()
     output_path = os.path.join(output_dir, 'detailed_statistics.png')
@@ -446,10 +482,32 @@ def print_text_summary(metrics: Dict[str, Any]):
     for category, stats in sorted(summary['categories'].items()):
         if stats['count'] > 0:
             print(f"\n{category.replace('_', ' ').title()}:")
-            print(f"  Total Time:    {stats['total_time']:.3f}s ({stats['percentage']:.1f}%)")
-            print(f"  Call Count:    {stats['count']}")
-            print(f"  Average Time:  {stats['average_time']:.3f}s")
-            print(f"  Min/Max Time:  {stats['min_time']:.3f}s / {stats['max_time']:.3f}s")
+            print(f"  Total Time:       {stats['total_time']:.3f}s")
+            
+            # Handle both old and new format
+            if 'timeline_percentage' in stats:
+                print(f"  Timeline Coverage: {stats['timeline_percentage']:.1f}% (wall-clock)")
+                print(f"  Cumulative Time:  {stats['cumulative_percentage']:.1f}% (sum of durations)")
+            else:
+                # Backward compatibility with old format
+                print(f"  Percentage:       {stats.get('percentage', 0):.1f}%")
+            
+            print(f"  Call Count:       {stats['count']}")
+            print(f"  Average Time:     {stats['average_time']:.3f}s")
+            print(f"  Min/Max Time:     {stats['min_time']:.3f}s / {stats['max_time']:.3f}s")
+    
+    print("="*80)
+    
+    # Check if any category has cumulative percentage > 100%
+    has_parallel = any(
+        stats.get('cumulative_percentage', stats.get('percentage', 0)) > 100 
+        for stats in summary['categories'].values()
+    )
+    
+    if has_parallel:
+        print("\n⚠ Note: Some categories show cumulative time > 100%")
+        print("  This indicates parallel execution of operations in those categories.")
+        print("  'Timeline Coverage' shows the actual wall-clock time usage.")
     
     print("="*80 + "\n")
 

@@ -192,13 +192,17 @@ class Instrumentor:
             for category in self.CATEGORIES:
                 agg = self.aggregates[category]
                 if agg["count"] > 0:
+                    cumulative_percentage = round((agg["total_time"] / summary["session_duration"] * 100), 2) if summary["session_duration"] > 0 else 0
+                    timeline_percentage = self._calculate_timeline_coverage(category, summary["session_duration"])
+                    
                     summary["categories"][category] = {
                         "total_time": round(agg["total_time"], 3),
                         "count": agg["count"],
                         "average_time": round(agg["total_time"] / agg["count"], 3),
                         "min_time": round(agg["min_time"], 3),
                         "max_time": round(agg["max_time"], 3),
-                        "percentage": round((agg["total_time"] / summary["session_duration"] * 100), 2) if summary["session_duration"] > 0 else 0
+                        "cumulative_percentage": cumulative_percentage,  # Can exceed 100% with parallel operations
+                        "timeline_percentage": timeline_percentage  # Actual wall-clock coverage, never exceeds 100%
                     }
                 else:
                     summary["categories"][category] = {
@@ -207,10 +211,49 @@ class Instrumentor:
                         "average_time": 0,
                         "min_time": 0,
                         "max_time": 0,
-                        "percentage": 0
+                        "cumulative_percentage": 0,
+                        "timeline_percentage": 0
                     }
             
             return summary
+    
+    def _calculate_timeline_coverage(self, category: str, session_duration: float) -> float:
+        """
+        Calculate what percentage of the session timeline had this category active.
+        Accounts for overlapping operations within the same category.
+        
+        Args:
+            category: The category to calculate coverage for
+            session_duration: Total duration of the session
+            
+        Returns:
+            Percentage of timeline where this category had at least one active operation
+        """
+        if session_duration <= 0:
+            return 0.0
+        
+        # Get all operations for this category
+        category_ops = [op for op in self.operations if op["category"] == category]
+        if not category_ops:
+            return 0.0
+        
+        # Merge overlapping time intervals
+        intervals = [(op["relative_start"], op["relative_end"]) for op in category_ops]
+        intervals.sort()
+        
+        merged = []
+        for start, end in intervals:
+            if merged and start <= merged[-1][1]:
+                # Overlapping interval, merge it
+                merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+            else:
+                # Non-overlapping interval
+                merged.append((start, end))
+        
+        # Calculate total coverage
+        total_coverage = sum(end - start for start, end in merged)
+        
+        return round((total_coverage / session_duration * 100), 2)
     
     def get_timeline_data(self) -> List[Dict[str, Any]]:
         """
@@ -328,9 +371,15 @@ class Instrumentor:
         for category, stats in summary["categories"].items():
             if stats["count"] > 0:
                 print(f"\n{category.replace('_', ' ').title()}:")
-                print(f"  Total Time:    {stats['total_time']:.3f}s ({stats['percentage']:.1f}%)")
-                print(f"  Call Count:    {stats['count']}")
-                print(f"  Average Time:  {stats['average_time']:.3f}s")
-                print(f"  Min/Max Time:  {stats['min_time']:.3f}s / {stats['max_time']:.3f}s")
+                print(f"  Total Time:       {stats['total_time']:.3f}s")
+                print(f"  Timeline Coverage: {stats['timeline_percentage']:.1f}% (wall-clock)")
+                print(f"  Cumulative Time:  {stats['cumulative_percentage']:.1f}% (can exceed 100% with parallel ops)")
+                print(f"  Call Count:       {stats['count']}")
+                print(f"  Average Time:     {stats['average_time']:.3f}s")
+                print(f"  Min/Max Time:     {stats['min_time']:.3f}s / {stats['max_time']:.3f}s")
         
+        print("="*80)
+        print("\nNote: 'Cumulative Time' is the sum of all operation durations.")
+        print("      It can exceed 100% when operations run in parallel.")
+        print("      'Timeline Coverage' shows actual wall-clock time coverage.")
         print("="*80 + "\n")
