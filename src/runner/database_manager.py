@@ -17,6 +17,7 @@ from database_utils.db_values.search import query_lsh
 from database_utils.db_catalog.search import query_vector_db
 from database_utils.db_catalog.preprocess import EMBEDDING_FUNCTION
 from database_utils.db_catalog.csv_utils import load_tables_description
+from instrumentation.instrumentor import Instrumentor
 
 load_dotenv(override=True)
 DB_ROOT_PATH = Path(os.getenv("DB_ROOT_PATH"))
@@ -132,7 +133,9 @@ class DatabaseManager:
         #     print(f"Connection refused for {self.db_id}")
         lsh_status = self.set_lsh()
         if lsh_status == "success":
-            return query_lsh(self.lsh, self.minhashes, keyword, signature_size, n_gram, top_n)
+            instrumentor = Instrumentor()
+            with instrumentor.track_operation("minhash_lsh_operations", "query_lsh", {"keyword": keyword, "top_n": top_n}):
+                return query_lsh(self.lsh, self.minhashes, keyword, signature_size, n_gram, top_n)
         else:
             raise Exception(f"Error loading LSH for {self.db_id}")
         # except Exception as e:
@@ -165,7 +168,9 @@ class DatabaseManager:
         # except ConnectionRefusedError:
         vector_db_status = self.set_vector_db()
         if vector_db_status == "success":
-            return query_vector_db(self.vector_db, keyword, top_k)
+            instrumentor = Instrumentor()
+            with instrumentor.track_operation("vector_db_operations", "query_vector_db", {"keyword": keyword, "top_k": top_k}):
+                return query_vector_db(self.vector_db, keyword, top_k)
         else:
             raise Exception(f"Error loading Vector DB for {self.db_id}")
         # except Exception as e:

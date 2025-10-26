@@ -6,6 +6,7 @@ from langchain.output_parsers import OutputFixingParser
 from llm.engine_configs import ENGINE_CONFIGS
 from runner.logger import Logger
 from threading_utils import ordered_concurrent_function_calls
+from instrumentation.instrumentor import Instrumentor
 
 def get_llm_chain(engine_name: str, temperature: float = 0, base_uri: str = None) -> Any:
     """
@@ -63,12 +64,17 @@ def call_llm_chain(prompt: Any, engine: Any, parser: Any, request_kwargs: Dict[s
         Exception: If all attempts fail.
     """
     logger = Logger()
+    instrumentor = Instrumentor()
+    
     for attempt in range(max_attempts):
         try:
             # chain = prompt | engine | parser
             chain = prompt | engine
             prompt_text = prompt.invoke(request_kwargs).messages[0].content
-            output = chain.invoke(request_kwargs)
+            
+            with instrumentor.track_operation("llm_calls", "call_llm_chain", {"step": step, "attempt": attempt}):
+                output = chain.invoke(request_kwargs)
+            
             if isinstance(output, str):
                 if output.strip() == "":
                     engine = get_llm_chain("gemini-1.5-flash")
@@ -177,9 +183,12 @@ def call_engine(message: str, engine: Any, max_attempts: int = 12, backoff_base:
         Exception: If all attempts fail.
     """
     logger = Logger()
+    instrumentor = Instrumentor()
+    
     for attempt in range(max_attempts):
         try:
-            output = engine.invoke(message)
+            with instrumentor.track_operation("llm_calls", "call_engine", {"attempt": attempt}):
+                output = engine.invoke(message)
             return output.content
         except Exception as e:
             # if attempt < max_attempts - 1:

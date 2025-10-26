@@ -8,6 +8,7 @@ from sqlglot.optimizer.qualify import qualify
 
 from database_utils.execution import execute_sql
 from database_utils.db_info import get_table_all_columns, get_db_all_tables
+from instrumentation.instrumentor import Instrumentor
 
 def format_sql_query(query, meta_time_out = 10):
     try:
@@ -82,39 +83,41 @@ def get_sql_columns_dict(db_path: str, sql: str) -> Dict[str, List[str]]:
     Returns:
         Dict[str, List[str]]: Dictionary of tables and their columns.
     """
-    sql = qualify(parse_one(sql, read='sqlite'), qualify_columns=True, validate_qualify_columns=False) if isinstance(sql, str) else sql
-    columns_dict = {}
+    instrumentor = Instrumentor()
+    with instrumentor.track_operation("schema_operations", "get_sql_columns_dict"):
+        sql = qualify(parse_one(sql, read='sqlite'), qualify_columns=True, validate_qualify_columns=False) if isinstance(sql, str) else sql
+        columns_dict = {}
 
-    sub_queries = [subq for subq in sql.find_all(exp.Subquery) if subq != sql]
-    for sub_query in sub_queries:
-        subq_columns_dict = get_sql_columns_dict(db_path, sub_query)
-        for table, columns in subq_columns_dict.items():
-            if table not in columns_dict:
-                columns_dict[table] = columns
-            else:
-                columns_dict[table].extend([col for col in columns if col.lower() not in [c.lower() for c in columns_dict[table]]])
+        sub_queries = [subq for subq in sql.find_all(exp.Subquery) if subq != sql]
+        for sub_query in sub_queries:
+            subq_columns_dict = get_sql_columns_dict(db_path, sub_query)
+            for table, columns in subq_columns_dict.items():
+                if table not in columns_dict:
+                    columns_dict[table] = columns
+                else:
+                    columns_dict[table].extend([col for col in columns if col.lower() not in [c.lower() for c in columns_dict[table]]])
 
-    for column in sql.find_all(exp.Column):
-        column_name = column.name
-        table_alias = column.table
-        table = _get_table_with_alias(sql, table_alias) if table_alias else None
-        table_name = table.name if table else None
+        for column in sql.find_all(exp.Column):
+            column_name = column.name
+            table_alias = column.table
+            table = _get_table_with_alias(sql, table_alias) if table_alias else None
+            table_name = table.name if table else None
 
-        if not table_name:
-            candidate_tables = [t for t in sql.find_all(exp.Table) if _get_main_parent(t) == _get_main_parent(column)]
-            for candidate_table in candidate_tables:
-                table_columns = get_table_all_columns(db_path, candidate_table.name)
-                if column_name.lower() in [col.lower() for col in table_columns]:
-                    table_name = candidate_table.name
-                    break
+            if not table_name:
+                candidate_tables = [t for t in sql.find_all(exp.Table) if _get_main_parent(t) == _get_main_parent(column)]
+                for candidate_table in candidate_tables:
+                    table_columns = get_table_all_columns(db_path, candidate_table.name)
+                    if column_name.lower() in [col.lower() for col in table_columns]:
+                        table_name = candidate_table.name
+                        break
 
-        if table_name:
-            if table_name not in columns_dict:
-                columns_dict[table_name] = []
-            if column_name.lower() not in [c.lower() for c in columns_dict[table_name]]:
-                columns_dict[table_name].append(column_name)
+            if table_name:
+                if table_name not in columns_dict:
+                    columns_dict[table_name] = []
+                if column_name.lower() not in [c.lower() for c in columns_dict[table_name]]:
+                    columns_dict[table_name].append(column_name)
 
-    return columns_dict
+        return columns_dict
 
 # def get_sql_condition_literals(db_path: str, sql: str) -> Dict[str, Dict[str, List[str]]]:
 #     """

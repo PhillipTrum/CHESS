@@ -23,6 +23,7 @@ if GCP_CREDENTIALS and GCP_PROJECT and GCP_REGION:
 from runner.database_manager import DatabaseManager
 from workflow.system_state import SystemState
 from workflow.agents.tool import Tool
+from instrumentation.instrumentor import Instrumentor
 
 class RetrieveEntity(Tool):
     """
@@ -165,7 +166,9 @@ class RetrieveEntity(Tool):
         to_embed_strings.append(question_hint_string)
 
         # Get embeddings
-        embeddings = self.embedding_function.embed_documents(to_embed_strings)
+        instrumentor = Instrumentor()
+        with instrumentor.track_operation("embedding_operations", "embed_documents", {"num_strings": len(to_embed_strings)}):
+            embeddings = self.embedding_function.embed_documents(to_embed_strings)
 
         # Separate embeddings
         column_embeddings = embeddings[:-1]  # All except the last one
@@ -289,7 +292,10 @@ class RetrieveEntity(Tool):
             similar_values_dict[keyword][substring].append(entity_packet)
             to_embed_strings.append(similar_value)
         
-        all_embeddings = self.embedding_function.embed_documents(to_embed_strings)
+        instrumentor = Instrumentor()
+        with instrumentor.track_operation("embedding_operations", "embed_documents", {"num_strings": len(to_embed_strings)}):
+            all_embeddings = self.embedding_function.embed_documents(to_embed_strings)
+        
         similar_entities_via_embedding_similarity = []
         index = 0
         for keyword, substring_dict in similar_values_dict.items():

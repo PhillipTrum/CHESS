@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Any, Dict, List
 
 from runner.run_manager import RunManager
+from instrumentation.instrumentor import Instrumentor
 
 def parse_arguments() -> argparse.Namespace:
     """
@@ -47,6 +48,10 @@ def main():
     """
     Main function to run the pipeline with the specified configuration.
     """
+    # Initialize instrumentor and start session
+    instrumentor = Instrumentor()
+    instrumentor.start_session()
+    
     args = parse_arguments()
     dataset = load_dataset(args.data_path)
 
@@ -54,6 +59,16 @@ def main():
     run_manager.initialize_tasks(dataset)
     run_manager.run_tasks()
     run_manager.generate_sql_files()
+    
+    # Export instrumentation metrics to the run-specific results directory
+    metrics_filename = "-instrumentation.json"
+    metrics_path = os.path.join(run_manager.result_directory, metrics_filename)
+    
+    instrumentor.export_to_json(metrics_path)
+    instrumentor.print_summary()
+    
+    print(f"\n✓ Instrumentation metrics saved to: {metrics_path}")
+
 
 if __name__ == '__main__':
     main()

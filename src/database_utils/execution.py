@@ -11,6 +11,7 @@ from enum import Enum
 import os
 
 from sqlglot import parse_one, exp
+from instrumentation.instrumentor import Instrumentor
 
 class TimeoutException(Exception):
     pass
@@ -18,6 +19,8 @@ class TimeoutException(Exception):
 
 
 def execute_sql(db_path: str, sql: str, fetch: Union[str, int] = "all", timeout: int = 60) -> Any:
+    instrumentor = Instrumentor()
+    
     class QueryThread(threading.Thread):
         def __init__(self):
             threading.Thread.__init__(self)
@@ -42,15 +45,18 @@ def execute_sql(db_path: str, sql: str, fetch: Union[str, int] = "all", timeout:
                         raise ValueError("Invalid fetch argument. Must be 'all', 'one', 'random', or an integer.")
             except Exception as e:
                 self.exception = e
-    query_thread = QueryThread()
-    query_thread.start()
-    query_thread.join(timeout)
-    if query_thread.is_alive():
-        raise TimeoutError(f"SQL query execution exceeded the timeout of {timeout} seconds.")
-    if query_thread.exception:
-        # logging.error(f"Error in execute_sql: {query_thread.exception}\nSQL: {sql}")
-        raise query_thread.exception
-    return query_thread.result
+    
+    with instrumentor.track_operation("database_calls", "execute_sql", {"fetch": fetch}):
+        print(f"[DEBUG] Executing SQL query: {sql}")
+        query_thread = QueryThread()
+        query_thread.start()
+        query_thread.join(timeout)
+        if query_thread.is_alive():
+            raise TimeoutError(f"SQL query execution exceeded the timeout of {timeout} seconds.")
+        if query_thread.exception:
+            # logging.error(f"Error in execute_sql: {query_thread.exception}\nSQL: {sql}")
+            raise query_thread.exception
+        return query_thread.result
 
 
 def _clean_sql(sql: str) -> str:
