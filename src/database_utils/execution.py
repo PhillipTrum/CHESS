@@ -47,7 +47,7 @@ def execute_sql(db_path: str, sql: str, fetch: Union[str, int] = "all", timeout:
                 self.exception = e
     
     with instrumentor.track_operation("database_calls", "execute_sql", {"fetch": fetch}):
-        print(f"[DEBUG] Executing SQL query: {sql}")
+        # print(f"[DEBUG] Executing SQL query: {sql}")
         query_thread = QueryThread()
         query_thread.start()
         query_thread.join(timeout)

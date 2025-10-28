@@ -162,9 +162,9 @@ ENGINE_CONFIGS: Dict[str, Dict[str, Any]] = {
     "qwen-local": {
         "constructor": ChatOpenAI,
         "params": {
-            "model": "qwen/qwen2.5-7b-instruct",
+            "model": "qwen/Qwen3-30B-A3B-Instruct-2507",
             "openai_api_key": "EMPTY",
-            "openai_api_base": "http://127.0.0.1:39494/v1",
+            "openai_api_base": "http://127.0.0.1:32941/v1",
             "max_tokens": 1000,
             "temperature": 0,
         }
